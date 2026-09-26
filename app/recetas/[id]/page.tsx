@@ -6,15 +6,23 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
   const supabase = await createClient()
   const { id } = await params
 
-  // Buscamos la receta específica usando el ID de la URL
+  // 🪄 LA MAGIA DEL JOIN: Pedimos la receta + sus ingredientes relacionales + las unidades
   const { data: recipe, error } = await supabase
     .from('recipes')
-    .select('*')
+    .select(`
+      *,
+      recipe_ingredients (
+        quantity,
+        units ( abbreviation, name ),
+        ingredients ( name )
+      )
+    `)
     .eq('id', id)
     .single()
 
   if (error || !recipe) {
-    notFound() // Muestra la página 404 si la receta no existe
+    console.error("Error cargando receta:", error)
+    notFound()
   }
 
   return (
@@ -45,16 +53,31 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+            
+            {/* 🛒 SECCIÓN DE INGREDIENTES DINÁMICOS */}
             <div className="md:col-span-1">
               <h2 className="text-xl font-bold text-neutral-900 mb-4 flex items-center gap-2">
                 🛒 Ingredientes
               </h2>
-              {/* whitespace-pre-wrap permite que los saltos de línea del textarea se vean en pantalla */}
-              <div className="text-neutral-700 whitespace-pre-wrap leading-relaxed bg-neutral-50 p-6 rounded-xl border border-neutral-100">
-                {recipe.ingredients || 'No se agregaron ingredientes.'}
+              <div className="bg-neutral-50 p-6 rounded-xl border border-neutral-100">
+                {recipe.recipe_ingredients && recipe.recipe_ingredients.length > 0 ? (
+                  <ul className="space-y-4">
+                    {recipe.recipe_ingredients.map((item: any, idx: number) => (
+                      <li key={idx} className="flex items-start gap-3 text-neutral-700 border-b border-neutral-200/60 pb-2 last:border-0 last:pb-0">
+                        <span className="font-bold text-emerald-700 bg-emerald-100/50 px-2 py-0.5 rounded text-sm min-w-[3.5rem] text-center">
+                          {item.quantity} {item.units?.abbreviation}
+                        </span>
+                        <span className="pt-0.5 leading-tight">{item.ingredients?.name}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-neutral-500 text-sm italic">No se agregaron ingredientes a esta receta.</p>
+                )}
               </div>
             </div>
 
+            {/* 👨‍🍳 SECCIÓN DE INSTRUCCIONES */}
             <div className="md:col-span-2">
               <h2 className="text-xl font-bold text-neutral-900 mb-4 flex items-center gap-2">
                 👨‍🍳 Instrucciones
@@ -63,6 +86,7 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
                 {recipe.instructions || 'No se agregaron instrucciones.'}
               </div>
             </div>
+            
           </div>
         </div>
       </div>

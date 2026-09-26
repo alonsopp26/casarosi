@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import Navbar from '@/components/Navbar'
+import Footer from '@/components/Footer'
 
 export const metadata: Metadata = {
   title: 'La Casa de Rosi',
@@ -14,11 +15,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
-      <body className="bg-neutral-50 text-neutral-900 antialiased min-h-screen flex flex-col">
+     <body className="bg-neutral-50 min-h-screen flex flex-col text-neutral-900">
         <Navbar />
-        <main className="flex-1">
+        <main className="flex-grow w-full">
           {children}
         </main>
+        <Footer />
       </body>
     </html>
   )
