@@ -1,11 +1,23 @@
 'use client';
 
 import { useState } from 'react';
-import { guardarRecetaCompleta } from './actions';
+import { actualizarReceta } from '../../actions';
 
-export default function FormularioReceta({ units, ingredients, categories, tags }: any) {
-  const [listaIngredientes, setListaIngredientes] = useState([{ quantity: '', unit_id: '', ingredient_id: '' }]);
-  const [imagen, setImagen] = useState<File | null>(null);
+// Le damos un valor por defecto = [] a todas las listas para evitar errores "undefined"
+export default function FormularioEditar({ 
+  recipe, 
+  initialIngredients = [], 
+  etiquetasActuales = [], 
+  units = [], 
+  ingredients = [], 
+  categories = [], 
+  tags = [] 
+}: any) {
+  
+  // Usamos ?.length para verificar de forma segura
+  const [listaIngredientes, setListaIngredientes] = useState(
+    initialIngredients?.length > 0 ? initialIngredients : [{ quantity: '', unit_id: '', ingredient_id: '' }]
+  );
   const [estaGuardando, setEstaGuardando] = useState(false);
 
   const agregarFila = () => setListaIngredientes([...listaIngredientes, { quantity: '', unit_id: '', ingredient_id: '' }]);
@@ -26,71 +38,25 @@ export default function FormularioReceta({ units, ingredients, categories, tags 
     setEstaGuardando(true);
     const formData = new FormData(e.currentTarget);
 
-    // ☁️ 1. MAGIA DE CLOUDINARY
-    if (imagen) {
-      const cloudData = new FormData();
-      cloudData.append('file', imagen);
-      cloudData.append('upload_preset', 'recetas_rosi'); // Tu preset
-      cloudData.append('cloud_name', 'alonsopp26');      // Tu nube
-
-      try {
-        const res = await fetch('https://api.cloudinary.com/v1_1/alonsopp26/image/upload', {
-          method: 'POST',
-          body: cloudData,
-        });
-        const data = await res.json();
-        
-        if (data.secure_url) {
-          formData.append('image_url', data.secure_url);
-        }
-      } catch (error) {
-        console.error("Error al subir a Cloudinary:", error);
-        alert("Hubo un problema subiendo la imagen a Cloudinary.");
-        setEstaGuardando(false);
-        return;
-      }
-    }
-
-    // 💾 2. GUARDAR EN SUPABASE (Llama a actions.ts)
-    await guardarRecetaCompleta(formData, listaIngredientes);
-
-    // 🧹 3. LIMPIAR FORMULARIO
-    e.currentTarget.reset();
-    setListaIngredientes([{ quantity: '', unit_id: '', ingredient_id: '' }]);
-    setImagen(null);
-    setEstaGuardando(false);
+    await actualizarReceta(recipe.id, formData, listaIngredientes);
   };
 
   return (
     <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow-sm border border-neutral-200 space-y-6">
       
-      {/* SECCIÓN DE IMAGEN */}
-      <div className="p-4 border-2 border-dashed border-emerald-200 rounded-lg bg-emerald-50/50 text-center">
-        <label className="block text-sm font-bold text-emerald-800 mb-2 cursor-pointer">
-          📸 Foto del Platillo
-        </label>
-        <input 
-          type="file" 
-          accept="image/*" 
-          onChange={(e) => setImagen(e.target.files ? e.target.files[0] : null)}
-          className="w-full text-sm text-neutral-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-emerald-100 file:text-emerald-700 hover:file:bg-emerald-200 cursor-pointer"
-        />
-        {imagen && <p className="mt-2 text-xs text-emerald-600 font-medium">Archivo: {imagen.name}</p>}
-      </div>
-
       {/* TÍTULO, TIEMPO Y CATEGORÍA */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div>
           <label className="block text-sm font-medium mb-2">Título de la receta</label>
-          <input type="text" name="title" className="w-full border rounded-md p-2" placeholder="Ej. Enchiladas" required />
+          <input type="text" name="title" defaultValue={recipe.title} className="w-full border rounded-md p-2" required />
         </div>
         <div>
           <label className="block text-sm font-medium mb-2">Tiempo (min)</label>
-          <input type="number" name="prep_time" className="w-full border rounded-md p-2" placeholder="45" required />
+          <input type="number" name="prep_time" defaultValue={recipe.prep_time_minutes} className="w-full border rounded-md p-2" required />
         </div>
         <div>
           <label className="block text-sm font-medium mb-2">Categoría</label>
-          <select name="category_id" className="w-full border rounded-md p-2 bg-white" required>
+          <select name="category_id" defaultValue={recipe.category_id || ""} className="w-full border rounded-md p-2 bg-white" required>
             <option value="">Selecciona una...</option>
             {categories?.map((cat: any) => (
               <option key={cat.id} value={cat.id}>{cat.name}</option>
@@ -102,26 +68,34 @@ export default function FormularioReceta({ units, ingredients, categories, tags 
       {/* DESCRIPCIÓN */}
       <div>
         <label className="block text-sm font-medium mb-2">Descripción corta</label>
-        <textarea name="description" className="w-full border rounded-md p-2" rows={2} placeholder="Una breve descripción..."></textarea>
+        <textarea name="description" defaultValue={recipe.description} className="w-full border rounded-md p-2" rows={2}></textarea>
       </div>
 
-      {/* 🏷️ SECCIÓN DE ETIQUETAS (TAGS) */}
+      {/* 🏷️ ETIQUETAS (TAGS) */}
       <div className="bg-orange-50 p-4 rounded-md border border-orange-100">
         <label className="block text-sm font-bold text-orange-900 mb-3">🏷️ Etiquetas (Selecciona varias)</label>
         <div className="flex flex-wrap gap-3">
-          {tags?.map((tag: any) => (
-            <label key={tag.id} className="flex items-center gap-2 bg-white px-3 py-2 rounded-full border border-orange-200 cursor-pointer hover:bg-orange-100 transition-colors shadow-sm">
-              <input type="checkbox" name="tags" value={tag.id} className="accent-orange-600 w-4 h-4" />
-              <span className="text-sm font-medium text-orange-800">#{tag.name}</span>
-            </label>
-          ))}
+          {tags?.map((tag: any) => {
+            const estaMarcada = etiquetasActuales.includes(tag.id);
+            return (
+              <label key={tag.id} className="flex items-center gap-2 bg-white px-3 py-2 rounded-full border border-orange-200 cursor-pointer hover:bg-orange-100 transition-colors shadow-sm">
+                <input 
+                  type="checkbox" 
+                  name="tags" 
+                  value={tag.id} 
+                  defaultChecked={estaMarcada} 
+                  className="accent-orange-600 w-4 h-4" 
+                />
+                <span className="text-sm font-medium text-orange-800">#{tag.name}</span>
+              </label>
+            );
+          })}
         </div>
       </div>
 
-      {/* 🛒 SECCIÓN DE INGREDIENTES */}
+      {/* 🛒 INGREDIENTES */}
       <div className="bg-emerald-50 p-5 rounded-md border border-emerald-100">
         <h3 className="font-bold text-emerald-900 mb-4">🛒 Ingredientes</h3>
-        
         {listaIngredientes.map((ing: any, index: number) => (
           <div key={index} className="flex flex-wrap md:flex-nowrap gap-2 mb-3">
             <input 
@@ -147,17 +121,17 @@ export default function FormularioReceta({ units, ingredients, categories, tags 
       {/* INSTRUCCIONES */}
       <div>
         <label className="block text-sm font-medium mb-2">Instrucciones</label>
-        <textarea name="instructions" className="w-full border rounded-md p-2" rows={4} placeholder="Paso 1..." required></textarea>
+        <textarea name="instructions" defaultValue={recipe.instructions} className="w-full border rounded-md p-2" rows={4} required></textarea>
       </div>
 
       <button 
         type="submit" 
         disabled={estaGuardando}
         className={`w-full font-bold px-6 py-3 rounded-md transition-colors ${
-          estaGuardando ? 'bg-neutral-400 text-white cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700'
+          estaGuardando ? 'bg-neutral-400 text-white cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'
         }`}
       >
-        {estaGuardando ? 'Subiendo imagen y guardando...' : 'Guardar Receta'}
+        {estaGuardando ? 'Actualizando receta...' : 'Actualizar Receta'}
       </button>
     </form>
   );
