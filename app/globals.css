@@ -1,4 +1,4 @@
 @import "tailwindcss";
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+
+/* Habilita el modo oscuro manual con next-themes en Tailwind v4 */
+@custom-variant dark (&:is(.dark *));

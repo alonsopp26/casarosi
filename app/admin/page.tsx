@@ -11,28 +11,33 @@ export default async function AdminPage() {
   const { data: units } = await supabase.from('units').select('*').order('name');
   const { data: ingredients } = await supabase.from('ingredients').select('*').order('name');
   const { data: categories } = await supabase.from('categories').select('*').order('name');
-  const { data: tags } = await supabase.from('tags').select('*').order('name'); // <-- NUEVO
+  const { data: tags } = await supabase.from('tags').select('*').order('name');
 
   return (
-    <div className="max-w-4xl mx-auto py-10 px-4">
-      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-        <h1 className="text-3xl font-bold text-neutral-900">Nueva Receta</h1>
+    // Contenedor global para que toda la pantalla respete el modo oscuro/claro
+    <div className="w-full min-h-screen bg-[#fcfbf9] dark:bg-stone-950 transition-colors duration-300">
+      <div className="max-w-4xl mx-auto py-10 px-4">
+        <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+          <h1 className="text-3xl font-bold text-neutral-900 dark:text-white transition-colors">
+            Nueva Receta
+          </h1>
+          
+          <Link 
+            href="/admin/administrar" 
+            className="bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 px-5 py-2.5 rounded-lg font-bold hover:bg-emerald-200 dark:hover:bg-emerald-500/30 transition-colors flex items-center gap-2 shadow-sm"
+          >
+             Administrar Recetas
+          </Link>
+        </div>
         
-        <Link 
-          href="/admin/administrar" 
-          className="bg-emerald-100 text-emerald-800 px-5 py-2.5 rounded-lg font-bold hover:bg-emerald-200 transition-colors flex items-center gap-2 shadow-sm"
-        >
-          ⚙️ Administrar Recetas
-        </Link>
+        {/* Pasamos las categorías y etiquetas al formulario */}
+        <FormularioReceta 
+          units={units || []} 
+          ingredients={ingredients || []} 
+          categories={categories || []} 
+          tags={tags || []}
+        />
       </div>
-      
-      {/* Pasamos las categorías y etiquetas al formulario */}
-      <FormularioReceta 
-        units={units || []} 
-        ingredients={ingredients || []} 
-        categories={categories || []} 
-        tags={tags || []} // <-- NUEVO
-      />
     </div>
   );
 }

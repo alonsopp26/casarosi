@@ -9,13 +9,17 @@ export async function guardarRecetaCompleta(formData: FormData, listaIngrediente
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  // 1. Guardar la receta principal con categoría e imagen
+  // 1. Guardar la receta principal (incluyendo dificultad, rating e imagen)
   const { data: recipe, error: recipeError } = await supabase
     .from('recipes')
     .insert([{
       title: formData.get('title'),
       description: formData.get('description'),
       prep_time_minutes: formData.get('prep_time'),
+      servings: formData.get('servings') || 4,
+      difficulty: formData.get('difficulty') || 'Fácil',
+      rating: formData.get('rating') || 4.8,
+      status: formData.get('status') || 'published',
       instructions: formData.get('instructions'),
       image_url: formData.get('image_url') || null,
       category_id: formData.get('category_id') || null,
@@ -29,13 +33,16 @@ export async function guardarRecetaCompleta(formData: FormData, listaIngrediente
     return;
   }
 
-  // 2. Guardar los ingredientes relacionales
+  // 2. Guardar los ingredientes relacionales (con grupo, opcional y soporte para 'Al gusto')
   if (listaIngredientes.length > 0) {
     const relaciones = listaIngredientes.map(ing => ({
       recipe_id: recipe.id,
       ingredient_id: ing.ingredient_id,
-      unit_id: ing.unit_id,
-      quantity: ing.quantity
+      // Si unit_id o quantity vienen vacíos "", los mandamos como null
+      unit_id: ing.unit_id ? ing.unit_id : null,
+      quantity: ing.quantity !== '' && ing.quantity !== null ? ing.quantity : null,
+      group_name: ing.group_name || null,
+      is_optional: Boolean(ing.is_optional)
     }));
     await supabase.from('recipe_ingredients').insert(relaciones);
   }
@@ -62,20 +69,9 @@ export async function eliminarReceta(formData: FormData) {
   const supabase = await createClient();
   const id = formData.get('id') as string;
 
-  console.log("Intentando borrar receta con ID:", id);
+  const { error } = await supabase.from('recipes').delete().eq('id', id);
+  if (error) console.error("Fallo al borrar la receta:", error);
 
-  // 1. Borramos relaciones primero
-  const { error: err1 } = await supabase.from('recipe_ingredients').delete().eq('recipe_id', id);
-  if (err1) console.error("Fallo al borrar ingredientes:", err1);
-
-  const { error: err2 } = await supabase.from('meal_plans').delete().eq('recipe_id', id);
-  if (err2) console.error("Fallo al borrar del planificador:", err2);
-  
-  // 2. Borramos la receta principal (Las etiquetas se borran solas por el CASCADE)
-  const { error: err3 } = await supabase.from('recipes').delete().eq('id', id);
-  if (err3) console.error("Fallo al borrar la receta principal:", err3);
-
-  // 3. Refrescar todas las pantallas
   revalidatePath('/admin');
   revalidatePath('/admin/administrar');
   revalidatePath('/recetas');
@@ -87,14 +83,19 @@ export async function eliminarReceta(formData: FormData) {
 export async function actualizarReceta(id: string, formData: FormData, listaIngredientes: any[]) {
   const supabase = await createClient();
 
-  // 1. Actualizar título, descripción, instrucciones y CATEGORÍA
+  // 1. Actualizar receta principal (incluyendo image_url, difficulty y rating)
   const { error: recipeError } = await supabase
     .from('recipes')
     .update({
       title: formData.get('title'),
       description: formData.get('description'),
       prep_time_minutes: formData.get('prep_time'),
+      servings: formData.get('servings') || 4,
+      difficulty: formData.get('difficulty') || 'Fácil',
+      rating: formData.get('rating') || 4.8,
+      status: formData.get('status') || 'published',
       instructions: formData.get('instructions'),
+      image_url: formData.get('image_url') || null,
       category_id: formData.get('category_id') || null
     })
     .eq('id', id);
@@ -104,20 +105,22 @@ export async function actualizarReceta(id: string, formData: FormData, listaIngr
     return;
   }
 
-  // 2. Técnica de limpieza: Borramos los ingredientes viejos y guardamos los nuevos
+  // 2. Limpiar y volver a insertar ingredientes
   await supabase.from('recipe_ingredients').delete().eq('recipe_id', id);
 
   if (listaIngredientes.length > 0) {
     const relaciones = listaIngredientes.map(ing => ({
       recipe_id: id,
       ingredient_id: ing.ingredient_id,
-      unit_id: ing.unit_id,
-      quantity: ing.quantity
+      unit_id: ing.unit_id ? ing.unit_id : null,
+      quantity: ing.quantity !== '' && ing.quantity !== null ? ing.quantity : null,
+      group_name: ing.group_name || null,
+      is_optional: Boolean(ing.is_optional)
     }));
     await supabase.from('recipe_ingredients').insert(relaciones);
   }
 
-  // 3. Etiquetas: Borramos las viejas e insertamos las nuevas marcadas
+  // 3. Limpiar y volver a insertar etiquetas
   await supabase.from('recipe_tags').delete().eq('recipe_id', id);
   
   const selectedTags = formData.getAll('tags');
